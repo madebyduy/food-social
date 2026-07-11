@@ -1,0 +1,5 @@
+.env
+.gocache/
+bin/
+*.log
+*.exe
