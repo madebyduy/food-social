@@ -45,7 +45,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	// actorID = người ĐANG ĐĂNG NHẬP, lấy từ CONTEXT (không bao giờ lấy từ body).
 	actorID, ok := middleware.UserID(r.Context())
 	if !ok {
-		httpx.Error(w, apperr.Unauthorized("cần đăng nhập"))
+		httpx.Error(w, apperr.Unauthorized("Bạn cần đăng nhập để thực hiện hành động này"))
 		return
 	}
 
@@ -59,7 +59,7 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	var req UpdateProfileRequest
 	if err := httpx.DecodeJSON(w, r, &req); err != nil {
 		httpx.Error(w, err)
-		return
+		return 
 	}
 
 	// Validate CÚ PHÁP ở handler (độ dài...). Kiểm tra QUYỀN nằm trong service.
