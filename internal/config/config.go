@@ -17,6 +17,22 @@ type Config struct {
 	DatabaseURL string        // chuỗi kết nối Postgres (bắt buộc)
 	LogLevel    slog.Level    // mức log: debug/info/warn/error
 	SessionTTL  time.Duration // thời hạn session (dùng ở module auth về sau)
+	Cloudinary  CloudinaryConfig
+}
+
+// CloudinaryConfig — cấu hình upload ảnh qua Cloudinary (module media).
+// KHÔNG bắt buộc để server khởi động; chỉ các endpoint media mới cần. Secret đọc từ .env
+// (đã gitignore), KHÔNG bao giờ hardcode trong mã nguồn.
+type CloudinaryConfig struct {
+	CloudName string
+	APIKey    string
+	APISecret string
+	Folder    string
+}
+
+// Configured cho biết đã có đủ khóa để dùng Cloudinary chưa.
+func (c CloudinaryConfig) Configured() bool {
+	return c.CloudName != "" && c.APIKey != "" && c.APISecret != ""
 }
 
 // Load đọc env -> Config. Trả lỗi nếu thiếu biến bắt buộc.
@@ -26,6 +42,12 @@ func Load() (Config, error) {
 		DatabaseURL: strings.TrimSpace(os.Getenv("DATABASE_URL")),
 		LogLevel:    parseLogLevel(getEnv("LOG_LEVEL", "info")),
 		SessionTTL:  30 * 24 * time.Hour,
+		Cloudinary: CloudinaryConfig{
+			CloudName: strings.TrimSpace(os.Getenv("CLOUDINARY_CLOUD_NAME")),
+			APIKey:    strings.TrimSpace(os.Getenv("CLOUDINARY_API_KEY")),
+			APISecret: strings.TrimSpace(os.Getenv("CLOUDINARY_API_SECRET")),
+			Folder:    getEnv("CLOUDINARY_FOLDER", "anngon"),
+		},
 	}
 
 	if cfg.DatabaseURL == "" {

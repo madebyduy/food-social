@@ -38,7 +38,7 @@ CREATE INDEX ix_posts_province ON posts(province_id) WHERE status = 'VISIBLE';
 
 -- Full-text search nội dung bài, bỏ dấu. Cột generated: repository KHÔNG insert cột này.
 ALTER TABLE posts ADD COLUMN search_vector tsvector
-    GENERATED ALWAYS AS (to_tsvector('simple', unaccent(coalesce(content,'')))) STORED;
+    GENERATED ALWAYS AS (to_tsvector('simple', immutable_unaccent(coalesce(content,'')))) STORED;
 CREATE INDEX ix_posts_search ON posts USING GIN(search_vector);
 
 -- Luật province_id vs place_id: khi place_id đã có, tỉnh hiển thị lấy từ places.province_id (JOIN);

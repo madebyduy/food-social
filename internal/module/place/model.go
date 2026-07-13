@@ -52,9 +52,9 @@ type Place struct {
 // PlaceMergeHistory — một dòng audit cho mỗi lần admin gộp place B vào canonical A.
 type PlaceMergeHistory struct {
 	ID               int64
-	MergedPlaceID    int64          // place bị gộp (B)
-	CanonicalPlaceID int64          // place giữ lại (A)
-	MergedBy         int64          // admin thực hiện
+	MergedPlaceID    int64 // place bị gộp (B)
+	CanonicalPlaceID int64 // place giữ lại (A)
+	MergedBy         int64 // admin thực hiện
 	Reason           sql.NullString
 	CreatedAt        time.Time
 }

@@ -16,7 +16,15 @@ import (
 	"github.com/madebyduy/food-social/internal/config"
 	"github.com/madebyduy/food-social/internal/database"
 	"github.com/madebyduy/food-social/internal/middleware"
+	"github.com/madebyduy/food-social/internal/module/geo"
+	"github.com/madebyduy/food-social/internal/module/governance"
+	"github.com/madebyduy/food-social/internal/module/location"
+	"github.com/madebyduy/food-social/internal/module/media"
+	"github.com/madebyduy/food-social/internal/module/place"
 	"github.com/madebyduy/food-social/internal/module/platform"
+	"github.com/madebyduy/food-social/internal/module/post"
+	"github.com/madebyduy/food-social/internal/module/search"
+	"github.com/madebyduy/food-social/internal/module/social"
 	"github.com/madebyduy/food-social/internal/module/user"
 	"github.com/madebyduy/food-social/internal/router"
 )
@@ -51,11 +59,45 @@ func main() {
 	userSvc := user.NewService(db, userRepo, logger)
 	userHandler := user.NewHandler(userSvc)
 
+	postRepo := post.NewRepository(db)
+	postSvc := post.NewService(db, postRepo, logger)
+	postHandler := post.NewHandler(postSvc)
+
+	geoRepo := geo.NewRepository(db)
+	geoSvc := geo.NewService(db, geoRepo, logger)
+	geoHandler := geo.NewHandler(geoSvc)
+
+	placeRepo := place.NewRepository(db)
+	placeSvc := place.NewService(db, placeRepo, logger)
+	placeHandler := place.NewHandler(placeSvc)
+
+	if !cfg.Cloudinary.Configured() {
+		logger.Warn("cloudinary chưa cấu hình; các endpoint /media sẽ lỗi khi gọi")
+	}
+	mediaStorage := media.NewCloudinaryStorage(
+		cfg.Cloudinary.CloudName, cfg.Cloudinary.APIKey, cfg.Cloudinary.APISecret, cfg.Cloudinary.Folder,
+	)
+	mediaRepo := media.NewRepository(db)
+	mediaSvc := media.NewService(db, mediaRepo, mediaStorage, logger)
+	mediaHandler := media.NewHandler(mediaSvc)
+	socialHandler := social.NewHandler(social.NewService(db))
+	governanceHandler := governance.NewHandler(governance.NewService(db))
+	searchHandler := search.NewHandler(search.NewService(db))
+	locationHandler := location.NewHandler(location.NewService(db))
+
 	mux := router.New(router.Dependencies{
-		DB:              db,
-		AuthHandler:     authHandler,
-		UserHandler:     userHandler,
-		SessionResolver: authSvc,
+		DB:                db,
+		AuthHandler:       authHandler,
+		UserHandler:       userHandler,
+		PostHandler:       postHandler,
+		GeoHandler:        geoHandler,
+		PlaceHandler:      placeHandler,
+		MediaHandler:      mediaHandler,
+		SocialHandler:     socialHandler,
+		GovernanceHandler: governanceHandler,
+		SearchHandler:     searchHandler,
+		LocationHandler:   locationHandler,
+		SessionResolver:   authSvc,
 	})
 
 	rateLimiter := platform.NewRateLimiter(50, 100, nil)
@@ -64,6 +106,7 @@ func main() {
 
 	handler := middleware.Chain(mux,
 		middleware.Recovery(logger),
+		middleware.CORS(),
 		middleware.RequestID(),
 		middleware.Logging(logger),
 		middleware.RateLimit(rateLimiter),

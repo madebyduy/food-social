@@ -13,6 +13,51 @@ type Handler struct {
 	svc *Service
 }
 
+type passwordResetRequest struct {
+	Email string `json:"email"`
+}
+type passwordResetConfirm struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+func (h *Handler) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var req passwordResetRequest
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if err := h.svc.RequestPasswordReset(r.Context(), req.Email); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	httpx.WriteJSON(w, http.StatusAccepted, httpx.Envelope{Data: map[string]string{"message": "nếu email tồn tại, hướng dẫn đặt lại mật khẩu sẽ được gửi"}})
+}
+func (h *Handler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req passwordResetConfirm
+	if err := httpx.DecodeJSON(w, r, &req); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	if err := h.svc.ResetPassword(r.Context(), req.Token, req.Password); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	httpx.NoContent(w)
+}
+func (h *Handler) DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	id, ok := middleware.UserID(r.Context())
+	if !ok {
+		httpx.Error(w, apperr.Unauthorized("cần đăng nhập"))
+		return
+	}
+	if err := h.svc.DeleteAccount(r.Context(), id); err != nil {
+		httpx.Error(w, err)
+		return
+	}
+	httpx.NoContent(w)
+}
+
 func NewHandler(svc *Service) *Handler {
 	return &Handler{svc: svc}
 }

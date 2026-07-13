@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS follows;
+DROP TABLE IF EXISTS saved_posts;
+DROP TABLE IF EXISTS post_likes;
+DROP TABLE IF EXISTS comments;

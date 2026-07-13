@@ -29,7 +29,7 @@ CREATE INDEX        ix_places_province  ON places(province_id);
 -- Cột generated: Postgres tự tính, repository KHÔNG insert/update cột này.
 ALTER TABLE places ADD COLUMN search_vector tsvector
     GENERATED ALWAYS AS (
-        to_tsvector('simple', unaccent(coalesce(name,'') || ' ' || coalesce(address,'')))
+        to_tsvector('simple', immutable_unaccent(coalesce(name,'') || ' ' || coalesce(address,'')))
     ) STORED;
 CREATE INDEX ix_places_search ON places USING GIN(search_vector);
 

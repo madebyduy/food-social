@@ -141,6 +141,79 @@ func (s *Service) Me(ctx context.Context, userID int64) (*UserResponse, error) {
 	return &res, nil
 }
 
+// RequestPasswordReset tạo token một lần. Việc gửi token ra ngoài được giao cho
+// email/SMS adapter ở tầng triển khai; API luôn trả cùng một kết quả để không lộ email.
+func (s *Service) RequestPasswordReset(ctx context.Context, email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+	if err := validateEmail(email); err != nil {
+		return err
+	}
+	var userID int64
+	err := s.db.QueryRowContext(ctx, `SELECT id FROM users WHERE lower(email)=lower($1) AND status='ACTIVE' AND deleted_at IS NULL`, email).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("find reset user: %w", err)
+	}
+	token, hash, err := newSessionToken()
+	if err != nil {
+		return fmt.Errorf("new reset token: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `INSERT INTO password_reset_tokens(user_id,token_hash,expires_at) VALUES($1,$2,$3)`, userID, hash, s.clock.Now().Add(30*time.Minute))
+	if err != nil {
+		return fmt.Errorf("create reset token: %w", err)
+	}
+	// TODO(production): inject an email/SMS sender. Không log token thật.
+	s.log.Info("password reset requested", "user_id", userID, "delivery_token_created", token != "")
+	return nil
+}
+
+func (s *Service) ResetPassword(ctx context.Context, token, password string) error {
+	if strings.TrimSpace(token) == "" {
+		return apperr.BadRequest("token không được để trống")
+	}
+	if err := validatePassword(password); err != nil {
+		return err
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return fmt.Errorf("hash reset password: %w", err)
+	}
+	return database.WithTx(ctx, s.db, func(tx *sql.Tx) error {
+		var userID int64
+		if err := tx.QueryRowContext(ctx, `SELECT user_id FROM password_reset_tokens WHERE token_hash=$1 AND used_at IS NULL AND expires_at>$2 FOR UPDATE`, hashToken(token), s.clock.Now()).Scan(&userID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return apperr.BadRequest("token không hợp lệ hoặc đã hết hạn")
+			}
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE users SET password_hash=$1,updated_at=now() WHERE id=$2 AND deleted_at IS NULL`, hash, userID); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `UPDATE password_reset_tokens SET used_at=now() WHERE token_hash=$1`, hashToken(token)); err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, userID)
+		return err
+	})
+}
+
+func (s *Service) DeleteAccount(ctx context.Context, userID int64) error {
+	return database.WithTx(ctx, s.db, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `UPDATE users SET status='DELETED',deleted_at=now(),updated_at=now() WHERE id=$1 AND deleted_at IS NULL`, userID)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return apperr.ErrNotFound
+		}
+		_, err = tx.ExecContext(ctx, `UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL`, userID)
+		return err
+	})
+}
+
 func (s *Service) ResolveSession(ctx context.Context, rawToken string) (int64, error) {
 	if strings.TrimSpace(rawToken) == "" {
 		return 0, apperr.Unauthorized("thiếu session token")

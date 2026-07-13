@@ -100,3 +100,25 @@ type PostHashtag struct {
 	PostID    int64
 	HashtagID int64
 }
+
+// --- READ MODELS (không ánh xạ 1-1 với một bảng) ---
+//
+// Các struct dưới đây KHÔNG phải entity bảng: chúng là "hình chiếu đọc" ghép từ nhiều bảng,
+// dùng khi trả bài kèm quan hệ (ảnh, hashtag). Tách riêng để entity Post vẫn thuần một bảng.
+
+// PostImageView — thông tin một ảnh của bài để hiển thị, ghép post_images + media_assets.
+// (post_images chỉ có media_id; URL/kích thước nằm ở media_assets.)
+type PostImageView struct {
+	MediaID    int64
+	StorageKey string // key object trên storage; client ghép base CDN để ra URL
+	Width      sql.NullInt64
+	Height     sql.NullInt64
+	SortOrder  int
+}
+
+// PostWithRelations gói một bài kèm ảnh + hashtag của nó — thứ các endpoint đọc trả về.
+type PostWithRelations struct {
+	Post     *Post
+	Images   []PostImageView
+	Hashtags []string
+}
